@@ -1,0 +1,20 @@
+# 不需要进入构建上下文的内容（尤其是大体积或会频繁改变导致缓存失效的）
+node_modules
+npm-debug.log*
+yarn.lock
+pnpm-lock.yaml
+.git
+.gitignore
+Dockerfile
+README.md
+*.md
+.vscode
+.idea
+.dist
+coverage
+
+# 若有本地环境文件（根据需要自行选择是否忽略）
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
