@@ -105,7 +105,8 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 const CANVAS_WIDTH = 976;
 const CANVAS_HEIGHT = 596;
 const PLATE_WIDTH = 600;
-const PLATE_MARGIN = 30;
+const PLATE_MARGIN_TOP = 30;
+const PLATE_MARGIN_RIGHT = 70;
 const PLATE_RIGHT_PADDING = 5;
 const ICON_PADDING = 5;
 const RATING_HEIGHT = 28;
@@ -128,6 +129,21 @@ const TITLE_TEXT_MIN_FONT = 10;
 const FONT_FAMILY =
     '"Noto Sans JP", "Microsoft YaHei", "PingFang SC", sans-serif';
 const DEFAULT_TITLE_RARE_TYPE = "Normal";
+
+type FrameAlignment = "left" | "center" | "right";
+
+const frameAlignmentOptions: Array<{
+    value: FrameAlignment;
+    label: string;
+}> = [
+    { value: "left", label: "靠左" },
+    { value: "center", label: "居中" },
+    { value: "right", label: "靠右" },
+];
+
+function isValidFrameAlignment(value: unknown): value is FrameAlignment {
+    return value === "left" || value === "center" || value === "right";
+}
 
 function resolveTitleBackground(rareType: string): string {
     return (
@@ -242,6 +258,7 @@ const nameplateId = ref(nameplateCatalog.items[0]?.id ?? "");
 const iconId = ref(iconCatalog.items[0]?.id ?? "");
 const fanBattleClassId = ref(fanBattleClassCatalog.items[0]?.id ?? "");
 const dansId = ref(dansCatalog.items[0]?.id ?? "");
+const frameAlignment = ref<FrameAlignment>("center");
 
 const defaultTitle = titleCatalog.entries[0];
 const titleKey = ref(defaultTitle ? titleCatalog.makeKey(defaultTitle) : "");
@@ -309,6 +326,9 @@ function tryRestoreSelection(stored: SelectionState) {
     if (stored.username) {
         username.value = stored.username;
     }
+    if (stored.frameAlignment && isValidFrameAlignment(stored.frameAlignment)) {
+        frameAlignment.value = stored.frameAlignment;
+    }
 }
 
 function collectSelection(): SelectionState {
@@ -321,6 +341,7 @@ function collectSelection(): SelectionState {
         titleKey: titleKey.value || undefined,
         rating: ratingRaw.value || undefined,
         username: username.value || undefined,
+        frameAlignment: frameAlignment.value,
     };
 }
 
@@ -388,6 +409,7 @@ watch(
         titleKey,
         ratingRaw,
         username,
+        frameAlignment,
     ],
     () => {
         if (isHydrating.value) return;
@@ -550,7 +572,18 @@ async function renderCanvas() {
         );
         const frameDrawWidth = frameImg.width * frameScale;
         const frameDrawHeight = frameImg.height * frameScale;
-        const frameDx = (CANVAS_WIDTH - frameDrawWidth) / 2;
+        let frameDx: number;
+        switch (frameAlignment.value) {
+            case "left":
+                frameDx = 0;
+                break;
+            case "right":
+                frameDx = CANVAS_WIDTH - frameDrawWidth;
+                break;
+            default:
+                frameDx = (CANVAS_WIDTH - frameDrawWidth) / 2;
+                break;
+        }
         const frameDy = (CANVAS_HEIGHT - frameDrawHeight) / 2;
         ctx.drawImage(
             frameImg,
@@ -562,8 +595,8 @@ async function renderCanvas() {
 
         const plateScale = PLATE_WIDTH / Math.max(nameplateImg.width, 1);
         const plateHeight = nameplateImg.height * plateScale;
-        const plateX = CANVAS_WIDTH - PLATE_MARGIN - PLATE_WIDTH;
-        const plateY = PLATE_MARGIN;
+        const plateX = CANVAS_WIDTH - PLATE_MARGIN_RIGHT - PLATE_WIDTH;
+        const plateY = PLATE_MARGIN_TOP;
         ctx.drawImage(nameplateImg, plateX, plateY, PLATE_WIDTH, plateHeight);
 
         const iconAvailableHeight = Math.max(plateHeight - ICON_PADDING * 2, 1);
@@ -876,6 +909,29 @@ async function downloadImage() {
                     @toggle-favorite="onToggleFrameFavorite"
                 />
 
+                <div class="form-field">
+                    <label class="field-label">框体裁剪对齐</label>
+                    <div class="segmented-control" role="radiogroup">
+                        <button
+                            v-for="option in frameAlignmentOptions"
+                            :key="option.value"
+                            class="segmented-control__button"
+                            type="button"
+                            :class="{
+                                'segmented-control__button--active':
+                                    frameAlignment === option.value,
+                            }"
+                            :aria-pressed="frameAlignment === option.value"
+                            @click="frameAlignment = option.value"
+                        >
+                            {{ option.label }}
+                        </button>
+                    </div>
+                    <p class="field-helper">
+                        选择框体缩放后保留的水平位置：左 / 中 / 右。
+                    </p>
+                </div>
+
                 <AssetPicker
                     label="Nameplate 名牌"
                     v-model="nameplateId"
@@ -931,6 +987,26 @@ async function downloadImage() {
                     <p class="field-helper">
                         后续会自动转换半角字符为全角字符。
                     </p>
+                </div>
+
+                <div class="form-field">
+                    <label class="field-label" for="frame-alignment"
+                        >框体对齐</label
+                    >
+                    <select
+                        id="frame-alignment"
+                        v-model="frameAlignment"
+                        class="field-input"
+                    >
+                        <option
+                            v-for="option in frameAlignmentOptions"
+                            :key="option.value"
+                            :value="option.value"
+                        >
+                            {{ option.label }}
+                        </option>
+                    </select>
+                    <p class="field-helper">选择框体在画布中的对齐方式。</p>
                 </div>
 
                 <div class="form-field">
@@ -1322,6 +1398,43 @@ async function downloadImage() {
 .primary-button:not(:disabled):hover {
     transform: translateY(-2px);
     box-shadow: 0 20px 45px -34px rgba(59, 130, 246, 0.75);
+}
+
+.segmented-control {
+    display: inline-flex;
+    gap: 0.4rem;
+    background: #f1f5f9;
+    padding: 0.35rem;
+    border-radius: 999px;
+    border: 1px solid #cbd5e1;
+}
+
+.segmented-control__button {
+    background: transparent;
+    border: none;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #475569;
+    border-radius: 999px;
+    cursor: pointer;
+    line-height: 1;
+    letter-spacing: 0.03em;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.segmented-control__button:hover {
+    background: #e2e8f0;
+}
+
+.segmented-control__button--active {
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    color: #fff;
+    box-shadow: 0 4px 12px -4px rgba(59, 130, 246, 0.6);
+}
+
+.segmented-control__button--active:hover {
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
 }
 
 .footer-hint {

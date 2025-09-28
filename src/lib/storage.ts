@@ -10,6 +10,7 @@ export type SelectionState = {
     titleKey?: string;
     rating?: string;
     username?: string;
+    frameAlignment?: "center" | "left" | "right";
 };
 
 export type FavoritesState = {
